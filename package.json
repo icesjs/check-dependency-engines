@@ -1,6 +1,6 @@
 {
   "name": "check-dependency-engines",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A tool for analyzing dependencies.",
   "main": "lib/index.js",
   "bin": {
