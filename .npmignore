@@ -22,6 +22,7 @@ test/unit/coverage
 /.gitignore
 /.prettierrc
 /.prettierrc.js
+/.prettierignore
 /.npmignore
 /.editorconfig
 /babel.config.js
