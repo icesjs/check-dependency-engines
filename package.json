@@ -1,0 +1,127 @@
+{
+  "name": "check-dependency-engines",
+  "version": "1.0.0",
+  "description": "A tool for analyzing dependencies.",
+  "main": "lib/index.js",
+  "bin": {
+    "check-dependency-engines": "lib/bin.js"
+  },
+  "engines": {
+    "node": ">=8.3"
+  },
+  "scripts": {
+    "format": "prettier --config .prettierrc.js --write '**/*.js'",
+    "test": "npm run build && node lib/bin.js",
+    "build": "babel src -d lib -s inline",
+    "release": "npm run build && semantic-release"
+  },
+  "homepage": "https://github.com/icesjs/check-dependency-engines",
+  "bugs": {
+    "url": "https://github.com/icesjs/check-dependency-engines/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/icesjs/check-dependency-engines.git"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.11.2",
+    "chalk": "3.0.0",
+    "cli-progress": "3.8.2",
+    "core-js": "^3.6.5",
+    "execa": "2.0.0",
+    "got": "8.3.2",
+    "registry-url": "5.1.0",
+    "resolve": "^1.17.0",
+    "semver": "^7.3.2",
+    "table": "6.0.0",
+    "write-pkg": "4.0.0",
+    "yargs": "15.4.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.11.6",
+    "@babel/core": "7.11.6",
+    "@babel/plugin-transform-runtime": "^7.11.5",
+    "@babel/preset-env": "^7.11.5",
+    "@commitlint/cli": "9.1.1",
+    "@commitlint/config-conventional": "9.1.1",
+    "@semantic-release/changelog": "1.0.0",
+    "@semantic-release/commit-analyzer": "5.0.1",
+    "@semantic-release/git": "3.0.0",
+    "@semantic-release/github": "4.0.2",
+    "@semantic-release/npm": "3.0.1",
+    "@semantic-release/release-notes-generator": "6.0.5",
+    "cz-conventional-changelog": "^3.3.0",
+    "husky": "2.7.0",
+    "prettier": "1.19.1",
+    "semantic-release": "12.2.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run format",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "release": {
+    "branches": [
+      "master"
+    ],
+    "analyzeCommits": {
+      "preset": "eslint",
+      "releaseRules": [
+        {
+          "tag": "Docs",
+          "message": "*README*",
+          "release": "patch"
+        },
+        {
+          "tag": "New",
+          "release": "patch"
+        }
+      ]
+    },
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      "@semantic-release/npm",
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md"
+          ]
+        }
+      ],
+      "@semantic-release/github"
+    ]
+  },
+  "files": [
+    "src"
+  ],
+  "keywords": [
+    "engines",
+    "npm",
+    "package",
+    "check",
+    "verify",
+    "update",
+    "deps",
+    "dependencies"
+  ],
+  "author": {
+    "name": "Stone",
+    "email": "star2018@outlook.com",
+    "url": "https://github.com/icesjs"
+  },
+  "license": "MIT"
+}
