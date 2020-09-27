@@ -13,7 +13,7 @@
     "format": "prettier --config .prettierrc.js --write '**/*.js'",
     "test": "npm run build && node lib/bin.js",
     "build": "babel src -d lib -s inline",
-    "release": "npm publish --registry='https://registry.npmjs.org/'"
+    "release": "npm run build && release-it"
   },
   "homepage": "https://github.com/icesjs/check-dependency-engines",
   "bugs": {
@@ -59,6 +59,10 @@
     "name": "Stone",
     "email": "star2018@outlook.com",
     "url": "https://github.com/icesjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "license": "MIT",
   "files": [
