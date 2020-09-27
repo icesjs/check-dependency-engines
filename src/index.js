@@ -15,19 +15,12 @@ const { SingleBar } = require('cli-progress')
  * 检查依赖的引擎要求，并通过元数据查找符合当前工程最小引擎版本要求的依赖的版本。
  */
 module.exports = class Checker {
-  // 需要检查的依赖类型列表
-  static depsType = [
-    'dependencies',
-    'devDependencies',
-    'peerDependencies',
-    'optionalDependencies',
-  ]
-
   //
   constructor({
     log,
     update,
     exact,
+    development,
     preRelease = false,
     cwd = process.cwd(),
     registry = registryUrl(),
@@ -37,15 +30,21 @@ module.exports = class Checker {
     this.autoUpdateAfterCheck = !!update
     this.useExactVersionWhenUpdate = !!exact
     this.allowPreRelease = !!preRelease
+    this.onlyUpdateDevDependencies = !!development
     this.cwd = cwd
     this.registry = `${`${registry}`.replace(/\/+$/, '')}/`
+
+    // 需要更新的依赖类型
+    this.depsTypeForUpdate = this.onlyUpdateDevDependencies
+      ? ['devDependencies']
+      : ['dependencies', 'peerDependencies', 'optionalDependencies']
 
     try {
       this.npmPackage = this.getNpmPackage()
       // 当前工程的引擎要求
       this.projectRequiredEngines = this.npmPackage.engines || null
     } catch (e) {
-      this.logger(e)
+      this.logger(chalk.red(e.message))
       return
     }
 
@@ -65,7 +64,7 @@ module.exports = class Checker {
   // 获取当前工作目录下的package.json
   getNpmPackage() {
     const pkg = require(path.join(this.cwd, './package.json'))
-    for (const prop of Checker.depsType) {
+    for (const prop of this.depsTypeForUpdate) {
       if (!pkg.hasOwnProperty(prop) || typeof pkg[prop] !== 'object') {
         pkg[prop] = {}
       }
@@ -84,7 +83,7 @@ module.exports = class Checker {
   // 检查依赖并进行package.json文件更新操作
   async check() {
     if (!this.verifiable()) {
-      return
+      return []
     }
     const { node, npm } = this.minProjectEngineVersion
     this.logger(
@@ -96,6 +95,11 @@ module.exports = class Checker {
       `Expected ${chalk.cyan('Min version')} for ${chalk.cyan(
         'Npm'
       )} is: ${chalk.cyan(npm || '*')}`
+    )
+    this.logger(
+      `Check the packages declared by ${chalk.cyan(
+        this.depsTypeForUpdate.join(', ')
+      )}`
     )
     // 分析并打印信息
     const updated = this.printTable(this.formatData(await this.fetchMetaData()))
@@ -111,7 +115,10 @@ module.exports = class Checker {
 
   // 是否可验证的
   verifiable() {
-    const { node, npm } = this.minProjectEngineVersion || {}
+    if (!this.minProjectEngineVersion) {
+      return false
+    }
+    const { node, npm } = this.minProjectEngineVersion
     if (!node && !npm) {
       this.logger('No version requirements for engine in this project.')
       return false
@@ -291,12 +298,12 @@ module.exports = class Checker {
   // 格式化结果数据
   formatData(data) {
     const npmPkg = this.npmPackage
-    const mockPkg = Checker.depsType.reduce((obj, type) => {
+    const mockPkg = this.depsTypeForUpdate.reduce((obj, type) => {
       obj[type] = {}
       return obj
     }, {})
     for (const [deps, packs] of data) {
-      for (const key of Checker.depsType) {
+      for (const key of this.depsTypeForUpdate) {
         if (npmPkg[key] === deps) {
           for (const [name, pkg] of Object.entries(packs)) {
             const {
@@ -338,7 +345,9 @@ module.exports = class Checker {
     const errors = []
     this.logger(`Fetching meta data from "${this.registry}"...`)
     const tick = this.createProgressBar(this.dependencyAmount)
-    for (const deps of Checker.depsType.map((type) => this.npmPackage[type])) {
+    for (const deps of this.depsTypeForUpdate.map(
+      (type) => this.npmPackage[type]
+    )) {
       data.set(deps, {})
       // 请求元数据
       for (const [name, range] of Object.entries(deps)) {
@@ -464,7 +473,7 @@ module.exports = class Checker {
 
   // 获取已声明的依赖数量
   getDependencyAmount() {
-    return Checker.depsType.reduce(
+    return this.depsTypeForUpdate.reduce(
       (amount, type) => amount + Object.keys(this.npmPackage[type]).length,
       0
     )
