@@ -15,6 +15,14 @@ const { SingleBar } = require('cli-progress')
  * 检查依赖的引擎要求，并通过元数据查找符合当前工程最小引擎版本要求的依赖的版本。
  */
 module.exports = class Checker {
+  // 需要检查的依赖类型列表
+  static depsType = [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]
+
   //
   constructor({
     log,
@@ -35,19 +43,19 @@ module.exports = class Checker {
     try {
       this.npmPackage = this.getNpmPackage()
       // 当前工程的引擎要求
-      this.requiredEngines = this.npmPackage.engines || null
+      this.projectRequiredEngines = this.npmPackage.engines || null
     } catch (e) {
       this.logger(e)
-      process.exit(1)
+      return
     }
 
     // 依赖包的总数
     this.dependencyAmount = this.getDependencyAmount()
 
-    if (this.requiredEngines) {
+    if (this.projectRequiredEngines) {
       // 期待的最小引擎版本号
-      const { node, npm } = this.requiredEngines
-      this.minVersionEngines = {
+      const { node, npm } = this.projectRequiredEngines
+      this.minProjectEngineVersion = {
         node: node ? semver.minVersion(node) : '',
         npm: npm ? semver.minVersion(npm) : '',
       }
@@ -57,11 +65,7 @@ module.exports = class Checker {
   // 获取当前工作目录下的package.json
   getNpmPackage() {
     const pkg = require(path.join(this.cwd, './package.json'))
-    for (const prop of [
-      'dependencies',
-      'devDependencies',
-      'peerDependencies',
-    ]) {
+    for (const prop of Checker.depsType) {
       if (!pkg.hasOwnProperty(prop) || typeof pkg[prop] !== 'object') {
         pkg[prop] = {}
       }
@@ -82,7 +86,7 @@ module.exports = class Checker {
     if (!this.verifiable()) {
       return
     }
-    const { node, npm } = this.minVersionEngines
+    const { node, npm } = this.minProjectEngineVersion
     this.logger(
       `Expected ${chalk.cyan('Min version')} for ${chalk.cyan(
         'Node'
@@ -107,13 +111,13 @@ module.exports = class Checker {
 
   // 是否可验证的
   verifiable() {
-    const { node, npm } = this.minVersionEngines
+    const { node, npm } = this.minProjectEngineVersion || {}
     if (!node && !npm) {
-      this.logger('There is no expectation for engines in project.')
+      this.logger('No version requirements for engine in this project.')
       return false
     }
     if (!this.dependencyAmount) {
-      this.logger('There is no dependency declared in project.')
+      this.logger('No declared dependencies in this project.')
       return false
     }
     return true
@@ -249,17 +253,15 @@ module.exports = class Checker {
 
   // 获取已安装包的信息
   getInstalledPkg(name) {
-    let pkg = {
-      version: '',
-      engines: null,
+    let pkg = { version: '', engines: null }
+    const filter = ({ version, engines }) => {
+      pkg.version = version
+      pkg.engines = engines
     }
     try {
       resolve.sync(name, {
         basedir: this.cwd,
-        packageFilter: ({ version, engines }) => {
-          pkg.version = version
-          pkg.engines = engines
-        },
+        packageFilter: filter,
       })
     } catch (e) {}
     return pkg
@@ -267,12 +269,19 @@ module.exports = class Checker {
 
   // 对依赖要求的引擎版本范围进行匹配
   matchRange(meta) {
-    const { engines } = meta
-    if (!engines) {
-      return !(!this.allowPreRelease && semver.prerelease(meta.version))
+    const allowBeta = this.allowPreRelease
+    const { engines, version } = meta
+    if (!allowBeta && semver.prerelease(version)) {
+      // 不匹配预发布版本
+      // 当前版本为预发布版本，不满足要求
+      return false
     }
-    const opt = { includePrerelease: this.allowPreRelease }
-    const { node: minNode, npm: minNpm } = this.minVersionEngines
+    if (!engines) {
+      // 依赖包没有引擎要求
+      return true
+    }
+    const { node: minNode, npm: minNpm } = this.minProjectEngineVersion
+    const opt = { includePrerelease: allowBeta }
     const { node, npm } = Object.assign({}, engines)
     const nodeFailed = minNode && node && !semver.satisfies(minNode, node, opt)
     const npmFailed = minNpm && npm && !semver.satisfies(minNpm, npm, opt)
@@ -282,13 +291,12 @@ module.exports = class Checker {
   // 格式化结果数据
   formatData(data) {
     const npmPkg = this.npmPackage
-    const mockPkg = {
-      dependencies: {},
-      devDependencies: {},
-      peerDependencies: {},
-    }
+    const mockPkg = Checker.depsType.reduce((obj, type) => {
+      obj[type] = {}
+      return obj
+    }, {})
     for (const [deps, packs] of data) {
-      for (const key of Object.keys(npmPkg)) {
+      for (const key of Checker.depsType) {
         if (npmPkg[key] === deps) {
           for (const [name, pkg] of Object.entries(packs)) {
             const {
@@ -326,12 +334,11 @@ module.exports = class Checker {
 
   // 获取依赖的元数据信息
   async fetchMetaData() {
-    const { dependencies, devDependencies, peerDependencies } = this.npmPackage
     const data = new Map()
     const errors = []
     this.logger(`Fetching meta data from "${this.registry}"...`)
     const tick = this.createProgressBar(this.dependencyAmount)
-    for (const deps of [dependencies, devDependencies, peerDependencies]) {
+    for (const deps of Checker.depsType.map((type) => this.npmPackage[type])) {
       data.set(deps, {})
       // 请求元数据
       for (const [name, range] of Object.entries(deps)) {
@@ -457,7 +464,7 @@ module.exports = class Checker {
 
   // 获取已声明的依赖数量
   getDependencyAmount() {
-    return ['dependencies', 'devDependencies', 'peerDependencies'].reduce(
+    return Checker.depsType.reduce(
       (amount, type) => amount + Object.keys(this.npmPackage[type]).length,
       0
     )

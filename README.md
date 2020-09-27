@@ -1,6 +1,6 @@
 
 <p align="center"><h1 align="center">
-  check-dependency-engines
+  @ices/check-dependency-engines
 </h1>
 
 <p align="center">
@@ -9,7 +9,7 @@
 
 # About
 
-<p align="center">
+<p>
   Check engines requirements of the dependency, and find the version of the dependency that meets the minimum engine version requirements of the current project through metadata.
 </p>
 
@@ -17,12 +17,17 @@
 
 Used as a cli util:
 ```bash
-npm i check-dependency-engines -g
+npm i @ices/check-dependency-engines -g
+```
+
+or run without install:
+```bash
+npx @ices/check-dependency-engines
 ```
 
 Used as a dev util:
 ```bash
-npm i check-dependency-engines -D
+npm i @ices/check-dependency-engines -D
 ```
 
 # Usage
@@ -30,7 +35,7 @@ npm i check-dependency-engines -D
 As a cli util:
 
 ```bash
-> check-dependency-engines
+> check-engines
 ```
 
 Options:
@@ -47,10 +52,10 @@ As a package:
 
 ```js
 ;(async () => {
-  const Checker = require('check-dependency-engines')
+  const Checker = require('@ices/check-dependency-engines')
   const ck = new Checker({
     cwd: process.cwd(), // current working dir
-    registry: 'https://npm.registry.some.domain', // npm registry for download metadata
+    registry: 'https://registry.some.domain', // npm registry for download metadata
     preRelease: false, // should match pre-release version of dependency
     exact: true, // should use exact version when update matched version of dependency
     update: true, // should auto update package.json when there ara some changes
@@ -63,4 +68,4 @@ As a package:
 
 # Author
 
-**check-dependency-engines** © [Stone](https://github.com/star2018), Released under the [MIT](./LICENSE) License.
+**@ices/check-dependency-engines** © [Stone](https://github.com/icesjs), Released under the [MIT](./LICENSE) License.
