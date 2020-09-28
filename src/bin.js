@@ -30,7 +30,7 @@ function clear(file) {
 async function install() {
   logger.log('Executing clear...')
   await clear('node_modules')
-  await clear('package-lock.json')
+  // await clear('package-lock.json')
   logger.log('Cleared successfully.\nExecuting install...')
   const subProcess = execa('npm', ['install'], execSetup)
   subProcess.stdout.pipe(process.stdout)
