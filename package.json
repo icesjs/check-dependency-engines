@@ -42,18 +42,31 @@
     "@babel/core": "7.11.6",
     "@babel/plugin-transform-runtime": "^7.11.5",
     "@babel/preset-env": "^7.11.5",
+    "@release-it/conventional-changelog": "^2.0.0",
     "prettier": "1.19.1",
     "release-it": "12.6.3"
   },
+  "release-it": {
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": "angular",
+        "infile": "CHANGELOG.md"
+      }
+    }
+  },
   "keywords": [
     "engines",
+    "engine",
     "npm",
+    "node",
     "package",
+    "pkg",
     "check",
     "verify",
     "update",
     "deps",
-    "dependencies"
+    "dependencies",
+    "dependency"
   ],
   "author": {
     "name": "Stone",
