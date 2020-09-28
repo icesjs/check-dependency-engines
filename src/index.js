@@ -77,7 +77,8 @@ module.exports = class Checker {
     if (!this.verifiable()) {
       return null
     }
-    return this.formatData(await this.fetchMetaData())
+    const { data } = this.formatData(await this.fetchMetaData())
+    return data
   }
 
   // 检查依赖并进行package.json文件更新操作
@@ -131,7 +132,7 @@ module.exports = class Checker {
   }
 
   // 以表格形式打印
-  printTable(data) {
+  printTable({ data, errors }) {
     const updatedDependencies = []
     const records = [
       // 表头
@@ -140,15 +141,20 @@ module.exports = class Checker {
     //
     for (const [type, obj] of Object.entries(data)) {
       for (const [name, item] of Object.entries(obj)) {
-        const { installed, satisfied, declaredRange } = item
-        const updatable = this.isUpdatable(declaredRange, satisfied)
+        const { installed, satisfied, latest, declaredRange, error } = item
+        const updatable = this.isUpdatable(declaredRange, satisfied, latest)
+
+        // 第一列
+        const typeDesc = `${type}\n\n${chalk.gray(
+          type === 'devDependencies' ? 'development' : 'production'
+        )}`
 
         // 第二列
+        const validDeclaredRange = semver.validRange(declaredRange)
         let declared = updatable ? chalk.yellow(name) : chalk.cyan(name)
         if (!installed) {
           declared += `  ${chalk.red('not install')}`
         }
-        const validDeclaredRange = semver.validRange(declaredRange)
         if (validDeclaredRange) {
           declared += `\n\n${declaredRange}  ${chalk.gray(
             `range: ${validDeclaredRange}`
@@ -160,6 +166,8 @@ module.exports = class Checker {
           declared += `\n\n${chalk.cyan(declaredRange)}  ${chalk.bold.gray(
             '->'
           )}  ${this.getUpdatedRange(installed, satisfied, declaredRange)}`
+        } else if (error) {
+          declared += `\n\n${chalk.red('fetch failed')}`
         }
 
         // 第三列
@@ -190,7 +198,7 @@ module.exports = class Checker {
         }
 
         // 添加行至表格
-        records.push([type, declared, details.join('\n')])
+        records.push([typeDesc, declared, details.join('\n')])
       }
     }
     //
@@ -201,45 +209,85 @@ module.exports = class Checker {
     })
     // 输出至终端
     this.logger(output)
+    if (errors.length) {
+      this.logger(`Can not fetch metadata for these package:`)
+      this.logger(
+        errors
+          .map(
+            ({ name, message }) => `${chalk.cyan(name)} : ${chalk.red(message)}`
+          )
+          .join('\n')
+      )
+    }
     return updatedDependencies
   }
 
   // 获取更新后的版本范围
   getUpdatedRange(installed, satisfied, declared) {
-    // 能够进入该方法，是通过了isUpdatable检测的
-    // 此时declared范围内最高版本一定是超出了匹配版本的
-    // 主要进行范围下限限定
     const validRange = semver.validRange(declared)
 
-    // 要求精确化版本
-    if (this.useExactVersionWhenUpdate) {
-      if (installed) {
-        if (semver.gte(installed, satisfied)) {
-          // 安装版本大于或等于匹配版本
+    if (validRange) {
+      if (semver.ltr(satisfied, declared)) {
+        // 匹配版本小于声明版本范围
+        return satisfied
+      }
+
+      if (semver.satisfies(satisfied, declared)) {
+        // 匹配版本在声明范围之中
+        if (this.useExactVersionWhenUpdate || satisfied === declared) {
+          // 使用精确版本
+          // 如果安装版本大于匹配版本，实际上是做了降低版本处理
+          // 如果安装版本小于匹配版本，实际上是做了升级版本处理
           return satisfied
         }
-        // 安装版本小于匹配版本
-        return installed
+        // 使用范围版本
+        if (validRange === '*') {
+          return `<=${satisfied}`
+        }
+
+        return `${declared} <=${satisfied}`
       }
-      // 当前没有安装该依赖
-      return validRange ? semver.minVersion(declared) : satisfied
+
+      // 匹配版本大于版本范围:
+      // 返回原来的版本范围声明
+      //（因为检查是否需要更新此项时判断过交集，实际不会到达这里）
+      return declared
     }
 
-    // 不要求精确化版本时
-    if (validRange) {
-      // 正确声明了版本范围
-      if (semver.lt(semver.minVersion(declared), satisfied)) {
-        // 声明了有效版本范围，并且最小版本小于匹配的版本
-        return `${validRange !== '*' ? `${declared} ` : ''}<=${satisfied}`
+    // 没有声明有效的版本范围（不正常的声明）
+    // 检查是否已经安装依赖
+    if (installed) {
+      if (semver.gte(installed, satisfied)) {
+        // 安装版本大于或等于匹配版本:
+        // 降低至匹配版本
+        return satisfied
       }
+      if (this.useExactVersionWhenUpdate) {
+        // 要求精确化版本，使用当前安装的版本
+        return installed
+      }
+      // 应用版本范围
+      if (semver.major(installed) < semver.major(satisfied)) {
+        // 安装版本的主版本小于匹配版本的主版本
+        // 返回锁定主版本的版本范围
+        return `^${installed}`
+      }
+      if (semver.minor(installed) < semver.minor(satisfied)) {
+        // 安装版本的主版本等于匹配版本，次版本小于匹配版本
+        // 锁定次版本
+        return `~${installed}`
+      }
+      // 主版本次版本相同
+      // 升级补丁版本
       return satisfied
     }
-    // 没有声明有效的版本范围
-    return `<=${satisfied}`
+
+    // 没有正确声明依赖版本范围，也没有安装此依赖
+    return `${this.useExactVersionWhenUpdate ? '' : '<='}${satisfied}`
   }
 
   // 是否是需要更新
-  isUpdatable(declaredRange, satisfied) {
+  isUpdatable(declaredRange, satisfied, latest) {
     if (!satisfied || satisfied === '*') {
       // 没有合适当前工程最小引擎版本要求的依赖版本号
       // 或者因没有引擎要求而通配的依赖版本号
@@ -254,8 +302,12 @@ module.exports = class Checker {
       // 声明的依赖版本不符合规范
       return true
     }
+
     // 如果与大于当前匹配版本的范围存在交集，则需要更新
-    return semver.intersects(range, `>${satisfied}`)
+    if (semver.intersects(range, `>${satisfied}`)) {
+      return this.useExactVersionWhenUpdate || latest !== satisfied
+    }
+    return false
   }
 
   // 获取已安装包的信息
@@ -296,7 +348,7 @@ module.exports = class Checker {
   }
 
   // 格式化结果数据
-  formatData(data) {
+  formatData({ errors, data }) {
     const npmPkg = this.npmPackage
     const mockPkg = this.depsTypeForUpdate.reduce((obj, type) => {
       obj[type] = {}
@@ -314,7 +366,6 @@ module.exports = class Checker {
             } = pkg
             const { version, engines } = this.getInstalledPkg(name)
             const { node, npm } = Object.assign({}, engines)
-
             mockPkg[key][name] = {
               declaredRange,
               installed: version,
@@ -322,8 +373,11 @@ module.exports = class Checker {
               expectedEngines: !node && !npm ? '*' : engines,
               satisfied: matchedVersion,
               satisfiedEngines: matchedEngines,
+              error: errors.filter((err) => err.name === name)[0],
             }
-            if (this.isUpdatable(declaredRange, matchedVersion)) {
+            if (
+              this.isUpdatable(declaredRange, matchedVersion, latestVersion)
+            ) {
               // 更新package.json依赖版本信息为已匹配到的版本号
               deps[name] = this.getUpdatedRange(
                 version,
@@ -336,7 +390,7 @@ module.exports = class Checker {
         }
       }
     }
-    return mockPkg
+    return { errors, data: mockPkg }
   }
 
   // 获取依赖的元数据信息
@@ -356,7 +410,11 @@ module.exports = class Checker {
           name,
           declaredRange: range,
           meta: await this.fetch(name).catch((e) => {
-            errors.push(`${chalk.cyan(name)} ${chalk.red(e.message)}`)
+            errors.push({
+              name,
+              error: e,
+              message: e.message,
+            })
             return { versions: {} }
           }),
         })
@@ -384,12 +442,11 @@ module.exports = class Checker {
       }
     }
     if (errors.length) {
-      this.logger(chalk.red(`Can not fetch metadata for these package:`))
-      this.logger(errors.join('\n'))
+      this.logger(chalk.red(`Some errors occurred while fetch meta data.:`))
     } else {
-      this.logger('Successfully Fetched meta data.')
+      this.logger('Successfully Fetched all meta data.')
     }
-    return data
+    return { errors, data }
   }
 
   // 从npm仓库请求元数据
