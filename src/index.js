@@ -106,10 +106,10 @@ module.exports = class Checker {
     const updated = this.printTable(this.formatData(await this.fetchMetaData()))
     if (updated.length && this.autoUpdateAfterCheck) {
       // 更新package.json文件
-      await writePackage.sync(this.cwd, this.npmPackage, { normalize: true })
+      await writePackage(this.cwd, this.npmPackage, { normalize: true })
       this.logger(`Successfully updated package.json`)
     } else {
-      this.logger(`Analyse completed.`)
+      this.logger(`Analyse completed`)
     }
     return updated
   }
@@ -121,11 +121,11 @@ module.exports = class Checker {
     }
     const { node, npm } = this.minProjectEngineVersion
     if (!node && !npm) {
-      this.logger('No version requirements for engine in this project.')
+      this.logger('No version requirements for engine in this project')
       return false
     }
     if (!this.dependencyAmount) {
-      this.logger('No declared dependencies in this project.')
+      this.logger('No declared dependencies in this project')
       return false
     }
     return true
@@ -397,7 +397,7 @@ module.exports = class Checker {
   async fetchMetaData() {
     const data = new Map()
     const errors = []
-    this.logger(`Fetching meta data from "${this.registry}"...`)
+    this.logger(`Fetching meta data from ${this.registry}`)
     const tick = this.createProgressBar(this.dependencyAmount)
     for (const deps of this.depsTypeForUpdate.map(
       (type) => this.npmPackage[type]
@@ -442,9 +442,9 @@ module.exports = class Checker {
       }
     }
     if (errors.length) {
-      this.logger(chalk.red(`Some errors occurred while fetch meta data.:`))
+      this.logger(chalk.red(`Some errors occurred while fetch meta data:`))
     } else {
-      this.logger('Successfully Fetched all meta data.')
+      this.logger('Successfully Fetched all meta data')
     }
     return { errors, data }
   }

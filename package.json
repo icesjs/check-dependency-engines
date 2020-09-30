@@ -32,6 +32,7 @@
     "got": "8.3.2",
     "registry-url": "5.1.0",
     "resolve": "^1.17.0",
+    "rimraf": "^3.0.2",
     "semver": "^7.3.2",
     "table": "6.0.0",
     "write-pkg": "4.0.0",

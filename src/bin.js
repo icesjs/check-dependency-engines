@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-const fs = require('fs')
 const path = require('path')
 const execa = require('execa')
 const chalk = require('chalk')
+const { promisify } = require('util')
+const rimraf = promisify(require('rimraf'))
 
 const execSetup = { extendEnv: true, cwd: process.cwd(), windowsHide: true }
 
@@ -14,24 +15,15 @@ const logger = {
 
 // 清理文件
 function clear(file) {
-  logger.log(`Deleting "${file}"...`)
-  if (!fs.existsSync(path.join(execSetup.cwd, file))) {
-    return
-  }
-  const platform = process.platform
-  if (/^(?:win32|windows_nt)$/.test(platform)) {
-    return execa(`rd`, ['/s/q', `"${file}"`], execSetup)
-  } else {
-    return execa(`rm`, ['-rf', `'${file}'`], execSetup)
-  }
+  logger.log(`Delete "${file}"`)
+  return rimraf(path.join(execSetup.cwd, file))
 }
 
 // 安装依赖
 async function install() {
-  logger.log('Executing clear...')
+  logger.log('Executing clear')
   await clear('node_modules')
-  // await clear('package-lock.json')
-  logger.log('Cleared successfully.\nExecuting install...')
+  logger.log('Successfully cleared\nExecuting install')
   const subProcess = execa('npm', ['install'], execSetup)
   subProcess.stdout.pipe(process.stdout)
   subProcess.stderr.pipe(process.stderr)
@@ -114,7 +106,7 @@ if (args.h) {
     .check()
     .then(async (updated) => {
       if (!updated.length) {
-        logger.log(chalk.cyan('No changes!'))
+        logger.log('No changes!')
       }
       if (!args.u || !updated.length) {
         return
@@ -122,21 +114,19 @@ if (args.h) {
       if (!args.t) {
         // 自动更新后，进行自动安装
         // 执行依赖安装
-        logger.log('Auto installing after update...')
+        logger.log('Auto install after update')
         execSetup.cwd = args.d || process.cwd()
         await install()
-        logger.log('Successfully installed.')
+        logger.log('Successfully installed')
         logger.log(
           chalk.yellow(
-            'You should re-run your tests to make sure everything works with the updates.'
+            'You should re-run your tests to make sure everything works with the updates'
           )
         )
       } else {
         logger.log(
-          chalk.cyan(
-            chalk.yellow(
-              'You should run npm install to update the dependencies,\nand re-run your tests to make sure everything works with the updates.'
-            )
+          chalk.yellow(
+            'You should run npm install to update the dependencies,\nand re-run your tests to make sure everything works with the updates'
           )
         )
       }
