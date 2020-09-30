@@ -1,6 +1,6 @@
 {
   "name": "@ices/check-dependency-engines",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "A tool for analyzing engines of dependency.",
   "main": "lib/index.js",
   "bin": {
